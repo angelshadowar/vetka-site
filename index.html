@@ -279,7 +279,7 @@ const DEFAULT_SETTINGS = {
   shopName: 'ВЕТКА',
   heroTitle: 'Букеты, которые говорят за вас',
   heroSubtitle: 'Каждая композиция создаётся с вниманием к деталям — свежие цветы, живые эмоции, быстрая доставка.',
-  heroImg: px(931177, 900),
+  heroImg: 'img/hero.png',
   footerText: 'Авторская флористика с душой — каждый букет создаётся специально для вас.',
   whatsapp: '',
   instagram: '',
@@ -289,10 +289,10 @@ const DEFAULT_SETTINGS = {
 
 /* ─── DEFAULT DATA ─── */
 const DEFAULT_CATEGORIES = [
-  {id:'avtorskie',name:'Авторские букеты',desc:'Уникальные авторские композиции',cover:'https://static.tildacdn.com/tild6266-3330-4461-b838-626663323861/photo_2026-05-29_10-.jpg',bg:'#d4a97a',featured:true},
-  {id:'korziny',name:'Корзины и коробки',desc:'Флористика в красивой упаковке',cover:'https://static.tildacdn.com/tild3361-3766-4438-a362-653834643032/photo_2025-09-16_14-.jpg',bg:'#c9a882'},
-  {id:'neveste',name:'Невесте',desc:'Свадебная флористика',cover:'https://static.tildacdn.com/tild3164-3930-4336-b830-343764393232/photo_2025-09-16_13-.jpg',bg:'#d8c4b0'},
-  {id:'florarium',name:'Флорариум',desc:'Живые композиции в стекле',cover:'https://static.tildacdn.com/tild6336-6433-4766-b237-336432316533/img_8376.jpg',bg:'#8fad8a'},
+  {id:'avtorskie',name:'Авторские букеты',desc:'Уникальные авторские композиции',cover:'img/cover-avtorskie.jpg',bg:'#d4a97a',featured:true},
+  {id:'korziny',name:'Корзины и коробки',desc:'Флористика в красивой упаковке',cover:'img/cover-korziny.jpg',bg:'#c9a882'},
+  {id:'neveste',name:'Невесте',desc:'Свадебная флористика',cover:'img/cover-neveste.jpg',bg:'#d8c4b0'},
+  {id:'florarium',name:'Флорариум',desc:'Живые композиции в стекле',cover:'img/cover-florarium.jpg',bg:'#8fad8a'},
   {id:'klassicheskie',name:'Классические букеты',desc:'Вечная классика',cover:'https://static.tildacdn.com/tild3862-3561-4662-a565-653432316562/image4_3.jpeg',bg:'#c48a96'},
   {id:'inter',name:'Интерьерные композиции',desc:'Цветы для дома и офиса',cover:'https://static.tildacdn.com/tild3135-3463-4765-a530-396465316365/photo_2025-10-14_16-.jpg',bg:'#96a8c4'},
   {id:'tykva',name:'Цветы в тыкве',desc:'Осенние сезонные композиции',cover:'https://static.tildacdn.com/tild6537-6666-4663-a264-313335323562/photo_2025-09-16_07-.jpg',bg:'#c4934a'},
@@ -494,6 +494,21 @@ if (load('version','1.0') !== DATA_VERSION) {
   localStorage.removeItem('vetka_products');
   localStorage.removeItem('vetka_categories');
   save('version', DATA_VERSION);
+}
+// Точечное обновление обложек разделов (не трогает товары и прочие правки)
+const COVER_PATCH = 'covers_2026_06_16_e';
+if (load('cover_patch','') !== COVER_PATCH) {
+  const cats = load('categories', null);
+  if (cats) {
+    const a = cats.find(x=>x.id==='avtorskie'); if (a) a.cover='img/cover-avtorskie.jpg';
+    const k = cats.find(x=>x.id==='korziny'); if (k) k.cover='img/cover-korziny.jpg';
+    const n = cats.find(x=>x.id==='neveste'); if (n) n.cover='img/cover-neveste.jpg';
+    const fl = cats.find(x=>x.id==='florarium'); if (fl) fl.cover='img/cover-florarium.jpg';
+    save('categories', cats);
+  }
+  const stg = load('settings', null);
+  if (stg) { stg.heroImg='img/hero.png'; save('settings', stg); }
+  save('cover_patch', COVER_PATCH);
 }
 
 /* ─── Icons ─── */
@@ -777,12 +792,13 @@ function Footer({ categories, settings }) {
 /* ══════════════════════════════════════
    ПАНЕЛЬ УПРАВЛЕНИЯ
 ══════════════════════════════════════ */
-function AdminPanel({ products, categories, onProductsChange, settings, onSettingsChange, onClose }) {
+function AdminPanel({ products, categories, onProductsChange, onCategoriesChange, settings, onSettingsChange, onClose }) {
   const [tab,setTab]=useState('products'); // 'products' | 'settings'
   const [catId,setCatId]=useState(categories[0]?.id||'');
   const [form,setForm]=useState(null);
   const [isNew,setIsNew]=useState(false);
   const [szInp,setSzInp]=useState('');
+  const [catForm,setCatForm]=useState(null);
   const [stg,setStg]=useState({...settings});
   const [newPw,setNewPw]=useState('');
   const sf=(field,val)=>setStg(prev=>({...prev,[field]:val}));
@@ -819,6 +835,17 @@ function AdminPanel({ products, categories, onProductsChange, settings, onSettin
 
   const f=(field,val)=>setForm(prev=>({...prev,[field]:val}));
 
+  // Редактирование раздела (название, описание, обложка)
+  const openCatEdit=()=>{ setCatForm({...activeCat}); closeForm(); };
+  const closeCatForm=()=>setCatForm(null);
+  const cf=(field,val)=>setCatForm(prev=>({...prev,[field]:val}));
+  const doCatSave=()=>{
+    if(!catForm.name.trim()){alert('Введите название раздела');return;}
+    const next=categories.map(c=>c.id===catForm.id?catForm:c);
+    onCategoriesChange(next);save('categories',next);
+    closeCatForm();
+  };
+
   return (
     <div className="admin-ov" onClick={onClose}>
       <div className="admin-panel" onClick={e=>e.stopPropagation()}>
@@ -830,7 +857,7 @@ function AdminPanel({ products, categories, onProductsChange, settings, onSettin
             <div className="as">Добавляйте, редактируйте и удаляйте товары</div>
           </div>
           <div className="admin-head-r">
-            <button className="admin-reset" onClick={()=>{ if(confirm('Сбросить все изменения к исходным данным?')){onProductsChange(DEFAULT_PRODUCTS);save('products',DEFAULT_PRODUCTS);closeForm();} }}>Сбросить</button>
+            <button className="admin-reset" onClick={()=>{ if(confirm('Сбросить все изменения к исходным данным?')){onProductsChange(DEFAULT_PRODUCTS);save('products',DEFAULT_PRODUCTS);onCategoriesChange(DEFAULT_CATEGORIES);save('categories',DEFAULT_CATEGORIES);closeForm();closeCatForm();} }}>Сбросить</button>
             <button className="admin-x" onClick={onClose}>{Ico.x}</button>
           </div>
         </div>
@@ -942,7 +969,10 @@ function AdminPanel({ products, categories, onProductsChange, settings, onSettin
             {tab==='products'&&(<>
             <div className="admin-mh">
               <div className="admin-mh-t">{activeCat?.name}<span>{catProducts.length} товаров</span></div>
-              <button className="btn-ap" onClick={openAdd}>+ Добавить товар</button>
+              <div style={{display:'flex',gap:8}}>
+                <button className="btn-ap" onClick={openCatEdit} style={{background:'var(--white)',color:'var(--mid)',border:'1.5px solid var(--border)'}} title="Изменить название и заглавное фото раздела">🖼 Фото раздела</button>
+                <button className="btn-ap" onClick={openAdd}>+ Добавить товар</button>
+              </div>
             </div>
 
             <div className="admin-list">
@@ -971,6 +1001,37 @@ function AdminPanel({ products, categories, onProductsChange, settings, onSettin
                 ))
               }
             </div>
+
+            {/* Edit category (cover / name) form */}
+            {catForm&&(
+              <div className="aform-wrap">
+                <div className="aform-inner">
+                  <div className="aform-title">🖼 Раздел каталога</div>
+                  <div className="afl">
+                    <label>Название раздела *</label>
+                    <input className="afinput" value={catForm.name} onChange={e=>cf('name',e.target.value)} placeholder="Авторские букеты" />
+                  </div>
+                  <div className="afl">
+                    <label>Краткое описание</label>
+                    <input className="afinput" value={catForm.desc} onChange={e=>cf('desc',e.target.value)} placeholder="Уникальные авторские композиции" />
+                  </div>
+                  <div className="afl">
+                    <label>Заглавное фото раздела</label>
+                    <div className="img-row">
+                      <div style={{width:96,height:72,borderRadius:8,background:'var(--soft)',border:'1.5px solid var(--border)',flexShrink:0,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'26px'}}>
+                        {catForm.cover ? <img src={catForm.cover} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none';}} /> : '🌸'}
+                      </div>
+                      <input className="afinput" value={catForm.cover} onChange={e=>cf('cover',e.target.value)} placeholder="https://i.ibb.co/..." />
+                    </div>
+                    <div className="hint">Загрузите фото на <a href="https://imgbb.com" target="_blank">imgbb.com</a> → скопируйте «Direct link» → вставьте сюда</div>
+                  </div>
+                  <div className="aform-foot">
+                    <button className="btn-sv" onClick={doCatSave}>💾 Сохранить</button>
+                    <button className="btn-cnc" onClick={closeCatForm}>Отмена</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Edit / Add form */}
             {form&&(
@@ -1056,7 +1117,7 @@ function AdminPanel({ products, categories, onProductsChange, settings, onSettin
 /* ─── App ─── */
 function App() {
   const [products,setProducts]=useState(()=>load('products',DEFAULT_PRODUCTS));
-  const [categories]=useState(()=>load('categories',DEFAULT_CATEGORIES));
+  const [categories,setCategories]=useState(()=>load('categories',DEFAULT_CATEGORIES));
   const [settings,setSettings]=useState(()=>load('settings',DEFAULT_SETTINGS));
   const [view,setView]=useState('home');
   const [activeCat,setActiveCat]=useState(null);
@@ -1077,6 +1138,7 @@ function App() {
 
   // Save products to localStorage on change
   useEffect(()=>{ save('products',products); },[products]);
+  useEffect(()=>{ save('categories',categories); },[categories]);
 
   const goToCategory=useCallback(cat=>{ setActiveCat(cat); setView('catalog'); window.scrollTo({top:0,behavior:'smooth'}); },[]);
   const [logoClicks,setLogoClicks]=useState(0);
@@ -1120,7 +1182,7 @@ function App() {
 
       {selProduct&&<ProductModal p={selProduct} categories={categories} settings={settings} onClose={()=>setSelProduct(null)} onAdd={p=>{addToCart(p);}} />}
       {cartOpen&&<CartDrawer items={cart} onClose={()=>setCartOpen(false)} onRemove={removeFromCart} />}
-      {adminOpen&&adminAuth&&<AdminPanel products={products} categories={categories} onProductsChange={setProducts} settings={settings} onSettingsChange={setSettings} onClose={()=>{setAdminOpen(false);setAdminAuth(false);}} />}
+      {adminOpen&&adminAuth&&<AdminPanel products={products} categories={categories} onProductsChange={setProducts} onCategoriesChange={setCategories} settings={settings} onSettingsChange={setSettings} onClose={()=>{setAdminOpen(false);setAdminAuth(false);}} />}
 
       {/* Пароль */}
       {showPwPrompt&&(
