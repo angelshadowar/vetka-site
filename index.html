@@ -177,6 +177,8 @@ img{display:block;}
 .admin-head-r{display:flex;gap:8px;align-items:center;}
 .admin-reset{font-size:11px;font-weight:600;padding:6px 12px;border-radius:7px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.6);transition:all .18s;}
 .admin-reset:hover{background:rgba(255,255,255,.18);color:#fff;}
+.admin-export{font-size:11px;font-weight:700;padding:6px 14px;border-radius:7px;background:var(--accent);color:#fff;transition:all .18s;}
+.admin-export:hover{background:var(--ad);}
 .admin-x{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;justify-content:center;transition:background .18s;}
 .admin-x:hover{background:rgba(255,255,255,.22);}
 .admin-body{flex:1;display:flex;overflow:hidden;}
@@ -195,7 +197,15 @@ img{display:block;}
 .btn-ap{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;transition:background .18s;}
 .btn-ap:hover{background:var(--ad);}
 .admin-list{flex:1;overflow-y:auto;padding:12px 22px;}
-.ap-item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;transition:background .15s;cursor:pointer;margin-bottom:3px;}
+.ap-item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;transition:background .15s,opacity .15s;cursor:pointer;margin-bottom:3px;}
+.ap-item.dragging{opacity:.45;background:var(--bg);box-shadow:0 8px 24px rgba(0,0,0,.14);}
+.asb-btn.dragging{opacity:.45;}
+.drag-h{flex-shrink:0;cursor:grab;color:var(--muted);font-size:15px;line-height:1;letter-spacing:-2px;padding:4px 3px;border-radius:6px;user-select:none;-webkit-user-select:none;touch-action:none;}
+.drag-h:hover{color:var(--dark);background:var(--border);}
+.drag-h:active{cursor:grabbing;}
+.asb-btn .drag-h{padding:2px 2px;font-size:13px;margin-right:2px;}
+.asb-btn.on .drag-h{color:rgba(255,255,255,.7);}
+.asb-btn.on .drag-h:hover{background:rgba(255,255,255,.18);color:#fff;}
 .ap-item:hover{background:var(--bg);}
 .ap-thumb{width:54px;height:54px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--soft);}
 .ap-no-img{width:54px;height:54px;border-radius:8px;background:var(--soft);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;}
@@ -235,6 +245,9 @@ img{display:block;}
 .btn-cnc:hover{border-color:var(--dark);color:var(--dark);}
 .hint{font-size:11px;color:var(--muted);margin-top:5px;}
 .hint a{color:var(--accent);}
+.btn-upload{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;border-radius:9px;background:var(--dark);color:#fff;font-size:13px;font-weight:700;transition:background .18s;}
+.btn-upload:hover{background:var(--accent);}
+.img-uploaded-note{font-size:12px;color:#3a7c3f;font-weight:700;margin-top:8px;display:flex;align-items:center;gap:6px;}
 
 /* Responsive */
 @media(max-width:1100px){.cat-grid{grid-auto-rows:220px;}.cat-card.featured .cat-name{font-size:28px;}}
@@ -266,6 +279,15 @@ img{display:block;}
 </style>
 </head>
 <body>
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+<rect width="100" height="100" fill="#f5efe6"/>
+<circle cx="50" cy="42" r="9" fill="#d97742"/>
+<path d="M50 42 C40 30 30 34 34 46 M50 42 C60 30 70 34 66 46 M50 42 C38 48 38 60 50 58 M50 42 C62 48 62 60 50 58" fill="none" stroke="#5a7d52" stroke-width="2.4" stroke-linecap="round"/>
+<rect x="46" y="50" width="8" height="34" rx="3" fill="#5a7d52"/>
+<text x="50" y="94" font-family="Georgia, serif" font-size="11" fill="#2b2b2b" text-anchor="middle" font-weight="bold">ВЕТКА</text>
+</svg>
+</template>
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect, useCallback, useRef } = React;
@@ -273,6 +295,62 @@ const { useState, useEffect, useCallback, useRef } = React;
 const C = '₽';
 const fmt = n => (parseInt(n)||0).toLocaleString('ru-RU') + '\u00a0' + C;
 const px = (id,w=700) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=${w}`;
+
+/* ─── Сжатие фото с компьютера в data-URL ─── */
+function resizeImageFile(file, maxDim=1100, quality=0.82){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const img=new Image();
+      img.onload=()=>{
+        let w=img.width, h=img.height;
+        if(w>h && w>maxDim){ h=Math.round(h*maxDim/w); w=maxDim; }
+        else if(h>=w && h>maxDim){ w=Math.round(w*maxDim/h); h=maxDim; }
+        const cv=document.createElement('canvas');
+        cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        try{ resolve(cv.toDataURL('image/jpeg',quality)); }catch(err){ reject(err); }
+      };
+      img.onerror=reject;
+      img.src=ev.target.result;
+    };
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ─── Выбор фото: файл с компьютера или ссылка ─── */
+function ImagePicker({ value, onChange, w=76, h=76 }){
+  const inputRef=useRef(null);
+  const [busy,setBusy]=useState(false);
+  const isData=typeof value==='string' && value.startsWith('data:');
+  const pick=async e=>{
+    const file=e.target.files[0];
+    if(!file) return;
+    setBusy(true);
+    try{ const d=await resizeImageFile(file); onChange(d); }
+    catch{ alert('Не удалось загрузить фото. Попробуйте другой файл.'); }
+    setBusy(false);
+    e.target.value='';
+  };
+  return (
+    <div className="img-row">
+      <div style={{width:w,height:h,borderRadius:8,background:'var(--soft)',border:'1.5px solid var(--border)',flexShrink:0,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'26px'}}>
+        {value ? <img src={value} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none';}} /> : '🌸'}
+      </div>
+      <div style={{flex:1}}>
+        <button type="button" className="btn-upload" onClick={()=>inputRef.current&&inputRef.current.click()}>
+          {busy ? 'Загрузка…' : '📁 Загрузить фото с компьютера'}
+        </button>
+        <input ref={inputRef} type="file" accept="image/*" style={{display:'none'}} onChange={pick} />
+        {isData
+          ? <div className="img-uploaded-note">✓ Фото загружено с компьютера</div>
+          : <input className="afinput" value={value||''} onChange={e=>onChange(e.target.value)} placeholder="…или вставьте ссылку https://…" style={{marginTop:8}} />
+        }
+      </div>
+    </div>
+  );
+}
 
 /* ─── DEFAULT SETTINGS ─── */
 const DEFAULT_SETTINGS = {
@@ -293,6 +371,7 @@ const DEFAULT_CATEGORIES = [
   {id:'korziny',name:'Корзины и коробки',desc:'Флористика в красивой упаковке',cover:'img/cover-korziny.jpg',bg:'#c9a882'},
   {id:'neveste',name:'Невесте',desc:'Свадебная флористика',cover:'img/cover-neveste.jpg',bg:'#d8c4b0'},
   {id:'florarium',name:'Флорариум',desc:'Живые композиции в стекле',cover:'img/cover-florarium.jpg',bg:'#8fad8a'},
+  {id:'steklo',name:'Композиция в стекле',desc:'Цветы в стеклянных вазах и колбах',cover:'',bg:'#9caa9d'},
   {id:'klassicheskie',name:'Классические букеты',desc:'Вечная классика',cover:'https://static.tildacdn.com/tild3862-3561-4662-a565-653432316562/image4_3.jpeg',bg:'#c48a96'},
   {id:'inter',name:'Интерьерные композиции',desc:'Цветы для дома и офиса',cover:'https://static.tildacdn.com/tild3135-3463-4765-a530-396465316365/photo_2025-10-14_16-.jpg',bg:'#96a8c4'},
   {id:'tykva',name:'Цветы в тыкве',desc:'Осенние сезонные композиции',cover:'https://static.tildacdn.com/tild6537-6666-4663-a264-313335323562/photo_2025-09-16_07-.jpg',bg:'#c4934a'},
@@ -489,6 +568,11 @@ const DEFAULT_PRODUCTS = [
 const DATA_VERSION = '2.0';
 const load = (key, def) => { try { const s=localStorage.getItem('vetka_'+key); return s?JSON.parse(s):def; } catch{return def;} };
 const save = (key, val) => { try { localStorage.setItem('vetka_'+key, JSON.stringify(val)); } catch{} };
+
+/* СНИМОК ДАННЫХ — сюда кнопка «Экспорт» вшивает все товары/разделы/настройки */
+/*__SNAPSHOT_START__*/
+var SNAPSHOT = null;
+/*__SNAPSHOT_END__*/
 // Reset if data version changed
 if (load('version','1.0') !== DATA_VERSION) {
   localStorage.removeItem('vetka_products');
@@ -496,7 +580,7 @@ if (load('version','1.0') !== DATA_VERSION) {
   save('version', DATA_VERSION);
 }
 // Точечное обновление обложек разделов (не трогает товары и прочие правки)
-const COVER_PATCH = 'covers_2026_06_16_e';
+const COVER_PATCH = 'covers_2026_06_17_steklo';
 if (load('cover_patch','') !== COVER_PATCH) {
   const cats = load('categories', null);
   if (cats) {
@@ -504,6 +588,10 @@ if (load('cover_patch','') !== COVER_PATCH) {
     const k = cats.find(x=>x.id==='korziny'); if (k) k.cover='img/cover-korziny.jpg';
     const n = cats.find(x=>x.id==='neveste'); if (n) n.cover='img/cover-neveste.jpg';
     const fl = cats.find(x=>x.id==='florarium'); if (fl) fl.cover='img/cover-florarium.jpg';
+    // Добавляем новый раздел «Композиция в стекле», если его ещё нет
+    if (!cats.find(x=>x.id==='steklo')) {
+      cats.push({id:'steklo',name:'Композиция в стекле',desc:'Цветы в стеклянных вазах и колбах',cover:'',bg:'#9caa9d'});
+    }
     save('categories', cats);
   }
   const stg = load('settings', null);
@@ -545,8 +633,8 @@ function Navbar({ cartCount, onCartOpen, onHome, settings, onLogoClick }) {
 
 /* ─── Hero ─── */
 function Hero({ onShop, settings }) {
-  const s = settings || DEFAULT_SETTINGS;
-  const lines = s.heroTitle.split(',').map(l=>l.trim());
+  const s = {...DEFAULT_SETTINGS, ...(settings||{})};
+  const lines = (s.heroTitle||'').split(',').map(l=>l.trim());
   return (
     <section className="hero">
       <div className="hero-text">
@@ -792,6 +880,60 @@ function Footer({ categories, settings }) {
 /* ══════════════════════════════════════
    ПАНЕЛЬ УПРАВЛЕНИЯ
 ══════════════════════════════════════ */
+/* ─── Drag-to-reorder (touch + mouse) via drag handles ─── */
+function useReorder(containerRef, itemsRef, idKey, onReorderRef, deps){
+  const [dragId,setDragId]=useState(null);
+  useEffect(()=>{
+    const root=containerRef.current;
+    if(!root) return;
+    let active=false, curId=null;
+    const idAt=(x,y)=>{
+      const el=document.elementFromPoint(x,y);
+      const it=el&&el.closest&&el.closest('[data-rid]');
+      if(it) return it.getAttribute('data-rid');
+      // fallback: find the row whose box the pointer is within (robust on mobile / scrolled lists)
+      const nodes=root.querySelectorAll('[data-rid]');
+      for(const node of nodes){ const r=node.getBoundingClientRect(); if(y>=r.top&&y<=r.bottom) return node.getAttribute('data-rid'); }
+      return null;
+    };
+    const reorder=(toId)=>{
+      if(!active||curId==null||toId==null||String(toId)===String(curId)) return;
+      const arr=itemsRef.current.slice();
+      const from=arr.findIndex(o=>String(o[idKey])===String(curId));
+      const to=arr.findIndex(o=>String(o[idKey])===String(toId));
+      if(from<0||to<0) return;
+      const [m]=arr.splice(from,1); arr.splice(to,0,m);
+      onReorderRef.current(arr);
+    };
+    const begin=(id)=>{ active=true; curId=id; setDragId(id); if(navigator.vibrate)try{navigator.vibrate(12);}catch(e){} };
+    const stop=()=>{ if(active){active=false;curId=null;setDragId(null);} };
+    const handleId=(target)=>{ const h=target.closest&&target.closest('[data-draghandle]'); if(!h)return null; const t=h.closest('[data-rid]'); return t?t.getAttribute('data-rid'):null; };
+    const onTS=(e)=>{ const id=handleId(e.target); if(id==null)return; begin(id); };
+    const onTM=(e)=>{ if(!active)return; const tt=e.touches[0]; if(!tt)return; e.preventDefault(); reorder(idAt(tt.clientX,tt.clientY)); };
+    const onTE=()=>stop();
+    const onMD=(e)=>{ const id=handleId(e.target); if(id==null)return; e.preventDefault(); begin(id); };
+    const onMM=(e)=>{ if(!active)return; e.preventDefault(); reorder(idAt(e.clientX,e.clientY)); };
+    const onMU=()=>stop();
+    root.addEventListener('touchstart',onTS,{passive:true});
+    root.addEventListener('touchmove',onTM,{passive:false});
+    root.addEventListener('touchend',onTE);
+    root.addEventListener('touchcancel',onTE);
+    root.addEventListener('mousedown',onMD);
+    window.addEventListener('mousemove',onMM);
+    window.addEventListener('mouseup',onMU);
+    return ()=>{
+      root.removeEventListener('touchstart',onTS);
+      root.removeEventListener('touchmove',onTM);
+      root.removeEventListener('touchend',onTE);
+      root.removeEventListener('touchcancel',onTE);
+      root.removeEventListener('mousedown',onMD);
+      window.removeEventListener('mousemove',onMM);
+      window.removeEventListener('mouseup',onMU);
+    };
+  }, deps||[]);
+  return dragId;
+}
+
 function AdminPanel({ products, categories, onProductsChange, onCategoriesChange, settings, onSettingsChange, onClose }) {
   const [tab,setTab]=useState('products'); // 'products' | 'settings'
   const [catId,setCatId]=useState(categories[0]?.id||'');
@@ -820,7 +962,7 @@ function AdminPanel({ products, categories, onProductsChange, onCategoriesChange
   const doSave=()=>{
     if(!form.name.trim()){alert('Введите название товара');return;}
     const p={...form,price:parseInt(form.price)||0,h:parseInt(form.h)||350};
-    onProductsChange(isNew?[...products,p]:products.map(x=>x.id===p.id?p:x));
+    onProductsChange(isNew?[p,...products]:products.map(x=>x.id===p.id?p:x));
     closeForm();
   };
 
@@ -834,6 +976,36 @@ function AdminPanel({ products, categories, onProductsChange, onCategoriesChange
   const rmSz=s=>setForm(f=>({...f,sizes:f.sizes.filter(x=>x!==s)}));
 
   const f=(field,val)=>setForm(prev=>({...prev,[field]:val}));
+
+  // Экспорт готового сайта с вшитыми данными
+  const exportSite=async()=>{
+    try{
+      const res=await fetch(location.href,{cache:'no-store'});
+      let src=await res.text();
+      const A='/*__SNAPSHOT_START__*/', B='/*__SNAPSHOT_END__*/';
+      const i=src.indexOf(A), j=src.indexOf(B);
+      if(i<0||j<0){ alert('Не удалось найти место для данных в файле.'); return; }
+      const snap={products,categories,settings};
+      const inject=A+'\nvar SNAPSHOT = '+JSON.stringify(snap)+';\n'+B;
+      src=src.slice(0,i)+inject+src.slice(j+B.length);
+      const blob=new Blob([src],{type:'text/html'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download='index.html';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    }catch(e){
+      alert('Экспорт работает только на опубликованном сайте или в превью (не из локального файла на компьютере).\n\n'+e.message);
+    }
+  };
+
+  // Drag-reorder refs (always latest data, no stale closures)
+  const prodListRef=useRef(null), catListRef=useRef(null);
+  const productsRef=useRef(products); productsRef.current=products;
+  const categoriesRef=useRef(categories); categoriesRef.current=categories;
+  const onProdRef=useRef(); onProdRef.current=(arr)=>{ onProductsChange(arr); save('products',arr); };
+  const onCatRef=useRef(); onCatRef.current=(arr)=>{ onCategoriesChange(arr); save('categories',arr); };
+  const prodDragId=useReorder(prodListRef, productsRef, 'id', onProdRef, [tab,catId]);
+  const catDragId=useReorder(catListRef, categoriesRef, 'id', onCatRef, []);
 
   // Редактирование раздела (название, описание, обложка)
   const openCatEdit=()=>{ setCatForm({...activeCat}); closeForm(); };
@@ -857,6 +1029,7 @@ function AdminPanel({ products, categories, onProductsChange, onCategoriesChange
             <div className="as">Добавляйте, редактируйте и удаляйте товары</div>
           </div>
           <div className="admin-head-r">
+            <button className="admin-export" onClick={exportSite} title="Скачать index.html со всеми товарами и разделами — для загрузки на GitHub">⬇ Экспорт сайта</button>
             <button className="admin-reset" onClick={()=>{ if(confirm('Сбросить все изменения к исходным данным?')){onProductsChange(DEFAULT_PRODUCTS);save('products',DEFAULT_PRODUCTS);onCategoriesChange(DEFAULT_CATEGORIES);save('categories',DEFAULT_CATEGORIES);closeForm();closeCatForm();} }}>Сбросить</button>
             <button className="admin-x" onClick={onClose}>{Ico.x}</button>
           </div>
@@ -866,7 +1039,7 @@ function AdminPanel({ products, categories, onProductsChange, onCategoriesChange
         <div className="admin-body">
 
           {/* Sidebar */}
-          <div className="admin-sb">
+          <div className="admin-sb" ref={catListRef}>
             <div className="asb-lbl">Управление</div>
             <button className={`asb-btn${tab==='settings'?' on':''}`} onClick={()=>{setTab('settings');closeForm();}}>
               <span>⚙ Настройки сайта</span>
@@ -875,8 +1048,9 @@ function AdminPanel({ products, categories, onProductsChange, onCategoriesChange
             {categories.map(c=>{
               const n=products.filter(p=>p.catId===c.id).length;
               return (
-                <button key={c.id} className={`asb-btn${tab==='products'&&catId===c.id?' on':''}`}
+                <button key={c.id} data-rid={c.id} className={`asb-btn${tab==='products'&&catId===c.id?' on':''}${catDragId===String(c.id)?' dragging':''}`}
                   onClick={()=>{setCatId(c.id);setTab('products');closeForm();}}>
+                  <span className="drag-h" data-draghandle onClick={e=>e.stopPropagation()} title="Перетащите, чтобы поменять порядок">⋮⋮</span>
                   <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>{c.name}</span>
                   <span className="asb-n">{n}</span>
                 </button>
@@ -895,14 +1069,9 @@ function AdminPanel({ products, categories, onProductsChange, onCategoriesChange
 
                   <div style={{fontSize:'11px',fontWeight:700,letterSpacing:'.14em',textTransform:'uppercase',color:'var(--accent)',marginBottom:14}}>Главное фото</div>
                   <div className="afl">
-                    <label>Ссылка на главное фото (Hero)</label>
-                    <div className="img-row" style={{marginBottom:8}}>
-                      <div style={{width:96,height:72,borderRadius:8,background:'var(--soft)',border:'1.5px solid var(--border)',flexShrink:0,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'26px'}}>
-                        {stg.heroImg ? <img src={stg.heroImg} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none';}} /> : '🌸'}
-                      </div>
-                      <input className="afinput" value={stg.heroImg} onChange={e=>sf('heroImg',e.target.value)} placeholder="https://i.ibb.co/..." />
-                    </div>
-                    <div className="hint">Загрузите фото на <a href="https://imgbb.com" target="_blank">imgbb.com</a> → скопируйте «Direct link» → вставьте сюда</div>
+                    <label>Главное фото (Hero)</label>
+                    <ImagePicker value={stg.heroImg} onChange={d=>sf('heroImg',d)} w={96} h={72} />
+                    <div className="hint">Нажмите «Загрузить фото с компьютера» и выберите файл — или вставьте ссылку</div>
                   </div>
 
                   <div style={{height:1,background:'var(--border)',margin:'20px 0'}}></div>
@@ -975,7 +1144,7 @@ function AdminPanel({ products, categories, onProductsChange, onCategoriesChange
               </div>
             </div>
 
-            <div className="admin-list">
+            <div className="admin-list" ref={prodListRef}>
               {catProducts.length===0
                 ? <div className="admin-empty">
                     <div style={{fontSize:'36px',marginBottom:'12px'}}>🌸</div>
@@ -983,7 +1152,8 @@ function AdminPanel({ products, categories, onProductsChange, onCategoriesChange
                     Нажмите «+ Добавить товар» чтобы начать.
                   </div>
                 : catProducts.map(p=>(
-                  <div key={p.id} className="ap-item" onClick={()=>openEdit(p)}>
+                  <div key={p.id} data-rid={p.id} className={`ap-item${prodDragId===String(p.id)?' dragging':''}`} onClick={()=>openEdit(p)}>
+                    <span className="drag-h" data-draghandle onClick={e=>e.stopPropagation()} title="Перетащите, чтобы поменять порядок">⋮⋮</span>
                     {p.img
                       ? <img className="ap-thumb" src={p.img} alt={p.name} onError={e=>{e.target.style.display='none';}} />
                       : <div className="ap-no-img">🌸</div>
@@ -1017,13 +1187,8 @@ function AdminPanel({ products, categories, onProductsChange, onCategoriesChange
                   </div>
                   <div className="afl">
                     <label>Заглавное фото раздела</label>
-                    <div className="img-row">
-                      <div style={{width:96,height:72,borderRadius:8,background:'var(--soft)',border:'1.5px solid var(--border)',flexShrink:0,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'26px'}}>
-                        {catForm.cover ? <img src={catForm.cover} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none';}} /> : '🌸'}
-                      </div>
-                      <input className="afinput" value={catForm.cover} onChange={e=>cf('cover',e.target.value)} placeholder="https://i.ibb.co/..." />
-                    </div>
-                    <div className="hint">Загрузите фото на <a href="https://imgbb.com" target="_blank">imgbb.com</a> → скопируйте «Direct link» → вставьте сюда</div>
+                    <ImagePicker value={catForm.cover} onChange={d=>cf('cover',d)} w={96} h={72} />
+                    <div className="hint">Нажмите «Загрузить фото с компьютера» и выберите файл — или вставьте ссылку</div>
                   </div>
                   <div className="aform-foot">
                     <button className="btn-sv" onClick={doCatSave}>💾 Сохранить</button>
@@ -1063,14 +1228,9 @@ function AdminPanel({ products, categories, onProductsChange, onCategoriesChange
                   </div>
 
                   <div className="afl">
-                    <label>Ссылка на фотографию</label>
-                    <div className="img-row">
-                      <div style={{width:76,height:76,borderRadius:8,background:'var(--soft)',border:'1.5px solid var(--border)',flexShrink:0,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'26px'}}>
-                        {form.img ? <img src={form.img} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none';}} /> : '🌸'}
-                      </div>
-                      <input className="afinput" value={form.img} onChange={e=>f('img',e.target.value)} placeholder="https://i.ibb.co/..." />
-                    </div>
-                    <div className="hint">Загрузите фото на <a href="https://imgbb.com" target="_blank">imgbb.com</a> → скопируйте «Direct link» → вставьте сюда</div>
+                    <label>Фотография товара</label>
+                    <ImagePicker value={form.img} onChange={d=>f('img',d)} w={76} h={76} />
+                    <div className="hint">Нажмите «Загрузить фото с компьютера» и выберите файл — или вставьте ссылку</div>
                   </div>
 
                   <div className="afl-2">
@@ -1116,9 +1276,9 @@ function AdminPanel({ products, categories, onProductsChange, onCategoriesChange
 
 /* ─── App ─── */
 function App() {
-  const [products,setProducts]=useState(()=>load('products',DEFAULT_PRODUCTS));
-  const [categories,setCategories]=useState(()=>load('categories',DEFAULT_CATEGORIES));
-  const [settings,setSettings]=useState(()=>load('settings',DEFAULT_SETTINGS));
+  const [products,setProducts]=useState(()=>load('products',(SNAPSHOT&&SNAPSHOT.products)||DEFAULT_PRODUCTS));
+  const [categories,setCategories]=useState(()=>load('categories',(SNAPSHOT&&SNAPSHOT.categories)||DEFAULT_CATEGORIES));
+  const [settings,setSettings]=useState(()=>({...DEFAULT_SETTINGS, ...load('settings',(SNAPSHOT&&SNAPSHOT.settings)||DEFAULT_SETTINGS)}));
   const [view,setView]=useState('home');
   const [activeCat,setActiveCat]=useState(null);
   const [adminAuth,setAdminAuth]=useState(false);
